@@ -1487,9 +1487,15 @@ func (a dbAppender) GetRef(lset labels.Labels, hash uint64) (storage.SeriesRef, 
 func (a dbAppender) Commit() error {
 	err := a.Appender.Commit()
 
+	if !a.db.autoCompactMtx.TryLock() {
+		return err
+	}
+	autoCompact := a.db.autoCompact
+	a.db.autoCompactMtx.Unlock()
+
 	// We could just run this check every few minutes practically. But for benchmarks
 	// and high frequency use cases this is the safer way.
-	if a.db.head.compactable() {
+	if autoCompact && a.db.head.compactable() {
 		select {
 		case a.db.compactc <- struct{}{}:
 		default:
@@ -1530,9 +1536,15 @@ func (a dbAppenderV2) GetRef(lset labels.Labels, hash uint64) (storage.SeriesRef
 func (a dbAppenderV2) Commit() error {
 	err := a.AppenderV2.Commit()
 
+	if !a.db.autoCompactMtx.TryLock() {
+		return err
+	}
+	autoCompact := a.db.autoCompact
+	a.db.autoCompactMtx.Unlock()
+
 	// We could just run this check every few minutes practically. But for benchmarks
 	// and high frequency use cases this is the safer way.
-	if a.db.head.compactable() {
+	if autoCompact && a.db.head.compactable() {
 		select {
 		case a.db.compactc <- struct{}{}:
 		default:
